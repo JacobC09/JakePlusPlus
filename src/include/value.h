@@ -13,20 +13,10 @@ class StringObj;
 class FunctionObj;
 class UpValueObj;
 class ClosureObj;
-class NativeFuncObj;
 class ExceptionObj;
 class ClassObj;
 class InstanceObj;
 class BoundMethod;
-
-class NativeFuncObj {
-public:
-    NativeFn funcPtr;
-
-    NativeFuncObj() = default;
-    NativeFuncObj(NativeFn funcPtr) : funcPtr(funcPtr) {};
-};
-
 
 using NoneValue = std::monostate;
 using NumberValue = double;
@@ -35,7 +25,7 @@ using StringValue = std::string;
 using FunctionValue = std::shared_ptr<FunctionObj>;
 using UpValuePtrValue = std::shared_ptr<UpValueObj>;
 using ClosureValue = std::shared_ptr<ClosureObj>;
-using NativeFuncValue = NativeFuncObj;
+using NativeFuncValue = NativeFn;
 using ExceptionValue = std::shared_ptr<ExceptionObj>;
 using ClassValue = std::shared_ptr<ClassObj>;
 using InstanceValue = std::shared_ptr<InstanceObj>;

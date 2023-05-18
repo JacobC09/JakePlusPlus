@@ -118,7 +118,7 @@ void Interpreter::inhertClass(ClassValue subClass, ClassValue baseClass) {
 }
 
 void Interpreter::defineNative(std::string name, NativeFn function) {
-    globals[name] = NativeFuncObj(function);
+    globals[name] = function;
 }
 
 void Interpreter::defineMethod(std::string name) {
@@ -177,12 +177,12 @@ bool Interpreter::callClosure(ClosureValue closure, u8 argc) {
     
     frameCount++;
     frames[frameCount] = CallFrame(closure, sp - argc - 1);
-    
+
     return true;
 }
 
 bool Interpreter::callNativeFunction(NativeFuncValue nativeFunc, u8 argc) {
-    Value result = (nativeFunc.funcPtr)(argc, sp - argc);
+    Value result = (nativeFunc)(argc, sp - argc);
     
     if (IS_EXCEPTION(result)) {
         ExceptionValue exception = AS_EXCEPTION(result);
