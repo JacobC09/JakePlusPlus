@@ -1,6 +1,8 @@
 #include "jakelang.h"
 #include "color.h"
 
+// TODO: Add Stuff
+
 void printError(ExceptionType type, std::string msg, int line, std::string value) {
     std::cout << color::red << color::bold;
     printf("Jake++ error on line %d:\n", line);

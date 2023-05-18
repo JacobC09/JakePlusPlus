@@ -1,8 +1,8 @@
-#include <stdarg.h>
 #include <cmath>
 #include "interpreter.h"
 #include "compiler.h"
 #include "benchmark.h"
+#include "print.h"
 
 // Interpreter
 
@@ -76,21 +76,12 @@ void Interpreter::push(Value value) {
     sp++;
 }
 
-void Interpreter::runtimeError(const char* format, ...) {
-    va_list args1;
-    va_start(args1, format);
-    va_list args2;
-    va_copy(args2, args1);
-
-    std::vector<char> str(std::vsnprintf(nullptr, 0, format, args1) + 1);
-    va_end(args1);
-
-    const int ret = std::vsnprintf(str.data(), str.size(), format, args2);
-    va_end(args2);
+void Interpreter::runtimeError(std::string msg) {
 
     CallFrame* frame = &frames[frameCount - 1];
     int index = (int) (frame->ip - frame->closure->function->chunk.bytecode.data());
-    printError(ExceptionType::RuntimeError, std::string(str.begin(), str.begin()+ret).c_str(), frame->closure->function->chunk.getLineNumber(index));
+    
+    printError(ExceptionType::RuntimeError, msg.c_str(), frame->closure->function->chunk.getLineNumber(index));
 
     for (int i = frameCount - 1; i >= 0; i--) {
         CallFrame* frame = &frames[i];
@@ -127,7 +118,7 @@ void Interpreter::inhertClass(ClassValue subClass, ClassValue baseClass) {
 }
 
 void Interpreter::defineNative(std::string name, NativeFn function) {
-    globals[name] = std::make_shared<NativeFuncObj>(function);
+    globals[name] = NativeFuncObj(function);
 }
 
 void Interpreter::defineMethod(std::string name) {
@@ -144,7 +135,7 @@ bool Interpreter::callValue(Value value, u8 argc) {
         }
 
         case ValueType::NativeFunc: {
-            return callClosure(AS_CLOSURE(value), argc);
+            return callNativeFunction(AS_NATIVE_FUNCTION(value), argc);
         }
 
         case ValueType::Class: {
@@ -154,7 +145,7 @@ bool Interpreter::callValue(Value value, u8 argc) {
             if (initializer != klass->methods.end()) {
                 callClosure(AS_CLOSURE(initializer->second), argc);
             } else if (argc != 0) {
-                runtimeError("Expected 0 arguments got %d", argc);
+                runtimeError(formatStr("Expected 0 arguments got %d", argc));
                 return false;
             }
             break;
@@ -180,16 +171,18 @@ bool Interpreter::callClosure(ClosureValue closure, u8 argc) {
     }
 
     if (closure->function->argc != argc) {
-        runtimeError("Expcted %d arguments, got %d", closure->function->argc, argc);
+        runtimeError(formatStr("Expcted %d arguments, got %d", closure->function->argc, argc));
         return false;
     }
-
-    frames[frameCount++] = CallFrame(closure, sp - argc - 1);
+    
+    frameCount++;
+    frames[frameCount] = CallFrame(closure, sp - argc - 1);
+    
     return true;
 }
 
 bool Interpreter::callNativeFunction(NativeFuncValue nativeFunc, u8 argc) {
-    Value result = nativeFunc->function(argc, sp - argc);
+    Value result = (nativeFunc.funcPtr)(argc, sp - argc);
     
     if (IS_EXCEPTION(result)) {
         ExceptionValue exception = AS_EXCEPTION(result);
@@ -226,7 +219,7 @@ bool Interpreter::invokeFromClass(ClassValue klass, std::string methodName, u8 a
     auto method = klass->methods.find(methodName);
 
     if (method == klass->methods.end()) {
-        runtimeError("Undefined property %s", methodName.c_str());
+        runtimeError(formatStr("Undefined property %s", methodName.c_str()));
     }
 
     return callClosure(AS_CLOSURE(method->second), argc);
@@ -236,7 +229,7 @@ bool Interpreter::bindMethod(ClassValue klass, std::string name) {
     auto value = klass->methods.find(name);
 
     if (value == klass->methods.end()) {
-        runtimeError("Instance of %s has no property %s", klass->name.c_str(), name.c_str());
+        runtimeError(formatStr("Instance of %s has no property %s", klass->name.c_str(), name.c_str()));
         return false;
     }
 
@@ -247,7 +240,6 @@ bool Interpreter::bindMethod(ClassValue klass, std::string name) {
 
     return true;
 }
-
 
 bool Interpreter::isFalsey(Value value) {
     return IS_NONE(value) || (IS_BOOLEAN(value) && !AS_BOOLEAN(value));
@@ -279,8 +271,16 @@ bool Interpreter::valuesEqual(Value valueA, Value valueB) {
 InterpreterResult Interpreter::run() {
     CallFrame* frame = &frames[frameCount - 1];
 
+    int pc = 0;
+
     for (;;) {
         u8 instruction = READ_BYTE();
+
+        pc++;
+
+        if (pc == 51) {
+            print("made it to 51");
+        }
 
         switch (instruction) {
             case OpPop: {
@@ -332,7 +332,7 @@ InterpreterResult Interpreter::run() {
                     push(NUMBER_VAL(AS_NUMBER(a) + AS_NUMBER(b)));
 
                 } else if (IS_STRING(a) && IS_STRING(b)) {
-                    push(std::make_shared<StringObj>(AS_STRING(a)->str + AS_STRING(b)->str));
+                    push(AS_STRING(a) + AS_STRING(b));
                 } else {
                     runtimeError("Can only add numbers or strings");
                     return InterpreterResult::Error;
@@ -488,18 +488,18 @@ InterpreterResult Interpreter::run() {
 
             case OpDefineGlobal: {
                 StringValue str = READ_STRING();
-                globals[str->str] = peek(0);
+                globals[str] = peek(0);
                 pop();
                 break;
             }
 
             case OpGetGlobal: {
-                std::string name = READ_STRING()->str;
+                std::string name = READ_STRING();
 
                 auto value = globals.find(name);
 
                 if (value == globals.end()) {
-                    runtimeError("Undefined variable %s", name.c_str());
+                    runtimeError(formatStr("Undefined variable %s", name.c_str()));
                     return InterpreterResult::Error;
                 }
 
@@ -508,12 +508,12 @@ InterpreterResult Interpreter::run() {
             }
 
             case OpSetGlobal: {
-                std::string name = READ_STRING()->str;
+                std::string name = READ_STRING();
 
                 auto value = globals.find(name);
 
                 if (value == globals.end()) {
-                    runtimeError("Undefined variable %s", name.c_str());
+                    runtimeError(formatStr("Undefined variable %s", name.c_str()));
                     return InterpreterResult::Error;
                 }
 
@@ -561,7 +561,7 @@ InterpreterResult Interpreter::run() {
                     runtimeError("Invalid call target");
                     return InterpreterResult::Error;
                 }
-
+                
                 frame = &frames[frameCount - 1];
                 break;
             }
@@ -603,7 +603,7 @@ InterpreterResult Interpreter::run() {
             }
 
             case OpClass: {
-                push(std::make_shared<ClassObj>(READ_STRING()->str));
+                push(std::make_shared<ClassObj>(READ_STRING()));
                 break;
             }
 
@@ -614,7 +614,7 @@ InterpreterResult Interpreter::run() {
                 }
                 
                 InstanceValue instance = AS_INSTANCE(peek(0));
-                std::string name = READ_STRING()->str;
+                std::string name = READ_STRING();
 
                 auto field = instance->fields.find(name);
 
@@ -639,7 +639,7 @@ InterpreterResult Interpreter::run() {
 
                 InstanceValue instance = AS_INSTANCE(peek(1));
 
-                instance->fields[READ_STRING()->str] = peek(0);
+                instance->fields[READ_STRING()] = peek(0);
                 Value value = pop();
                 pop();
                 push(value);
@@ -647,12 +647,12 @@ InterpreterResult Interpreter::run() {
             }
 
             case OpMethod: {
-                defineMethod(READ_STRING()->str);
+                defineMethod(READ_STRING());
                 break;
             }
 
             case OpInvoke: {
-                std::string method = READ_STRING()->str;
+                std::string method = READ_STRING();
                 int argc = READ_BYTE();
 
                 if (!invoke(method, argc)) {
@@ -679,7 +679,7 @@ InterpreterResult Interpreter::run() {
             }
 
             case OpGetSuper: {
-                std::string name = READ_STRING()->str;
+                std::string name = READ_STRING();
                 ClassValue superSlass = AS_CLASS(pop());
 
                 if (!bindMethod(superSlass, name)) {
@@ -691,7 +691,7 @@ InterpreterResult Interpreter::run() {
             }
 
             default: {
-                runtimeError("Unknown Instruction (%d)", (int) instruction);
+                runtimeError(formatStr("Unknown Instruction (%d)", (int) instruction));
                 return InterpreterResult::Error;
             }
         }
@@ -702,22 +702,3 @@ InterpreterResult Interpreter::run() {
 #undef READ_CONSTANT
 #undef READ_STRING
 #undef READ_SHORT
-
-// Native Functions
-
-#define NATIVE_RUNTIME_ERROR(msg) std::make_shared<ExceptionObj>(msg, ExceptionType::RuntimeError)
-#define ASSERT_TYPE(argIndex, TYPE_MACRO, msg) if (!TYPE_MACRO(argv[argIndex])) return NATIVE_RUNTIME_ERROR(msg)
-#define ASSERT_ARG_COUNT(count) if (argc != count) return NATIVE_RUNTIME_ERROR(formatStr("Expected %d arguments, got %d", count, argc))
-
-Value internalPow(int argc, Value argv[]) {
-    ASSERT_ARG_COUNT(2);
-    
-    ASSERT_TYPE(0, IS_NUMBER, "Expected number");
-    ASSERT_TYPE(1, IS_NUMBER, "Expected number");
-
-    return NUMBER_VAL(pow((double) AS_NUMBER(argv[0]), (double) AS_NUMBER(argv[1])));
-}
-
-#undef NATIVE_RUNTIME_ERROR
-#undef ASSERT_TYPE
-#undef ASSERT_ARG_COUNT

@@ -5,6 +5,10 @@
 #include "common.h"
 #include "jakelang.h"
 
+class Value;
+
+typedef Value (*NativeFn)(int argc, Value argv[]);
+
 class StringObj;
 class FunctionObj;
 class UpValueObj;
@@ -15,14 +19,23 @@ class ClassObj;
 class InstanceObj;
 class BoundMethod;
 
+class NativeFuncObj {
+public:
+    NativeFn funcPtr;
+
+    NativeFuncObj() = default;
+    NativeFuncObj(NativeFn funcPtr) : funcPtr(funcPtr) {};
+};
+
+
 using NoneValue = std::monostate;
 using NumberValue = double;
 using BooleanValue = bool;
-using StringValue = std::shared_ptr<StringObj>;
+using StringValue = std::string;
 using FunctionValue = std::shared_ptr<FunctionObj>;
 using UpValuePtrValue = std::shared_ptr<UpValueObj>;
 using ClosureValue = std::shared_ptr<ClosureObj>;
-using NativeFuncValue = std::shared_ptr<NativeFuncObj>;
+using NativeFuncValue = NativeFuncObj;
 using ExceptionValue = std::shared_ptr<ExceptionObj>;
 using ClassValue = std::shared_ptr<ClassObj>;
 using InstanceValue = std::shared_ptr<InstanceObj>;
@@ -69,15 +82,6 @@ public:
     int getLineNumber(int bytecodeIndex);
 };
 
-class StringObj {  // TODO: replace with std::string
-public:
-    std::string str;
-
-    StringObj() = default;
-    StringObj(std::string str) : str(str) {};
-};
-
-
 class FunctionObj {
 public:
     int argc = 0;
@@ -107,16 +111,6 @@ public:
     ClosureObj(FunctionValue function);
 };
 
-typedef Value (*NativeFn)(int argc, Value argv[]);
-
-class NativeFuncObj {
-public:
-    NativeFn function;
-
-    NativeFuncObj() = default;
-    NativeFuncObj(NativeFn function) : function(function) {};
-};
-
 class ExceptionObj {
 public:
     std::string msg;
@@ -129,7 +123,7 @@ public:
 class ClassObj {
 public:
     std::string name;
-    std::map<std::string, Value> methods;  // TODO: std::<std::string, ClosureValue>
+    std::map<std::string, Value> methods;
 
     ClassObj() = default;
     ClassObj(std::string name) : name(name) {};

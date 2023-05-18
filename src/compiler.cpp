@@ -3,6 +3,7 @@
 #include "jakelang.h"
 #include "interpreter.h"
 #include "value.h"
+#include "print.h"
 
 Parser::Parser(const char* source) :  source(source) {
     scanner = Scanner(source);
@@ -260,7 +261,7 @@ u8 Parser::makeConstant(Value value) {
 }
 
 u8 Parser::makeIdConstant(Token* identifier) {
-    return makeConstant(std::make_shared<StringObj>(std::string(identifier->source)));
+    return makeConstant(std::string(identifier->source));
 }
 
 u8 Parser::parseVariableName(std::string errorMessage) {
@@ -475,7 +476,7 @@ void Parser::variable() {
 }
 
 void Parser::string() {
-    emitConstant(std::make_shared<StringObj>(std::string(previousToken.source.data() + 1, previousToken.source.size() - 2)));
+    emitConstant(std::string(previousToken.source.data() + 1, previousToken.source.size() - 2));
 }
 
 void Parser::literal() {

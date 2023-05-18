@@ -12,6 +12,7 @@ add_executable(jake-lang
     "src/compiler.cpp"
     "src/value.cpp"
     "src/common.cpp"
+    "src/nativeFuncs.cpp"
 )
 
 # ---------- Linker Config ---------- #

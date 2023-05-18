@@ -11,7 +11,7 @@ int Chunk::addConstant(Value value) {
                 if (AS_NUMBER(constant) == AS_NUMBER(value))
                     return index;
             } else if (IS_STRING(value)) {
-                if (AS_STRING(constant)->str == AS_STRING(value)->str)
+                if (AS_STRING(constant) == AS_STRING(value))
                     return index;
             }
         }
