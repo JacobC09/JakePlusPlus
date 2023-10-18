@@ -1,2 +1,2 @@
 # JakePlusPlus
-Based on the lox language
+My own programming language 
